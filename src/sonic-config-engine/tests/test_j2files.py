@@ -391,6 +391,45 @@ class TestJ2Files(TestCase):
                 for line in output.splitlines()
             ))
 
+    def test_snmpd_community_insecure_defaults_rejected(self):
+        # 'public'/'private' must never be rendered, even via a direct
+        # ConfigDB write bypassing YANG/ingestion validation.
+        communities = {
+            'public': {'TYPE': 'RO'},
+            'private': {'TYPE': 'RW'},
+        }
+
+        output = self.render_snmpd_community_conf(communities)
+
+        self.assertNotIn('rocommunity public\n', output)
+        self.assertNotIn('rocommunity6 public\n', output)
+        self.assertNotIn('rwcommunity private\n', output)
+        self.assertNotIn('rwcommunity6 private\n', output)
+
+    def test_snmpd_community_insecure_default_mixed_with_valid(self):
+        # A legitimate community configured alongside a rejected default
+        # must still render normally.
+        communities = {
+            'public': {'TYPE': 'RO'},
+            'readcommunity': {'TYPE': 'RO'},
+        }
+
+        output = self.render_snmpd_community_conf(communities)
+
+        self.assertNotIn('rocommunity public\n', output)
+        self.assertIn('rocommunity readcommunity\n', output)
+        self.assertIn('rocommunity6 readcommunity\n', output)
+
+    def test_snmpd_community_insecure_default_case_variant_not_rejected(self):
+        # SNMP community strings are case-sensitive on the wire; 'Public' is
+        # not the well-known default and must not be over-blocked.
+        communities = {'Public': {'TYPE': 'RO'}}
+
+        output = self.render_snmpd_community_conf(communities)
+
+        self.assertIn('rocommunity Public\n', output)
+        self.assertIn('rocommunity6 Public\n', output)
+
     def test_snmpd_user_rendering(self):
         users = {
             'readuser': {
